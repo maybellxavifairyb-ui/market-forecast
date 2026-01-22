@@ -55,6 +55,19 @@ const App: React.FC = () => {
     }
   };
 
+  const handleDeleteReport = (id: string) => {
+    if (window.confirm('确定要删除这份报告吗？')) {
+      setReports(prev => prev.filter(r => r.id !== id));
+      setSelectedReport(null);
+      // Also remove from selection if it was selected
+      if (selectedIds.has(id)) {
+        const newSelected = new Set(selectedIds);
+        newSelected.delete(id);
+        setSelectedIds(newSelected);
+      }
+    }
+  };
+
   const handleSelectAll = () => {
     if (selectedIds.size === filteredReports.length) {
       setSelectedIds(new Set());
@@ -107,6 +120,7 @@ const App: React.FC = () => {
         <ReportDetail 
           report={selectedReport} 
           onBack={() => setSelectedReport(null)} 
+          onDelete={() => handleDeleteReport(selectedReport.id)}
         />
       </div>
     );

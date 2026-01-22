@@ -6,9 +6,10 @@ import { Button } from './Button';
 interface ReportDetailProps {
   report: MarketReport;
   onBack: () => void;
+  onDelete: () => void;
 }
 
-export const ReportDetail: React.FC<ReportDetailProps> = ({ report, onBack }) => {
+export const ReportDetail: React.FC<ReportDetailProps> = ({ report, onBack, onDelete }) => {
   const getSentimentText = (sentiment: string) => {
     switch (sentiment) {
       case 'positive': return { label: '乐观 (Positive)', color: 'text-green-600 bg-green-50' };
@@ -65,7 +66,7 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({ report, onBack }) =>
             </svg>
             下载报告
           </Button>
-          <Button variant="ghost" className="text-sm text-red-500 hover:bg-red-50">删除</Button>
+          <Button variant="ghost" className="text-sm text-red-500 hover:bg-red-50" onClick={onDelete}>删除</Button>
         </div>
       </div>
 
