@@ -12,6 +12,7 @@ const App: React.FC = () => {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('全部');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Load from localStorage on mount with basic validation
   useEffect(() => {
@@ -37,36 +38,58 @@ const App: React.FC = () => {
     setReports(prev => [newReport, ...prev]);
   };
 
-  // Explicitly typing categories to prevent 'unknown' inference and fix potential .map() errors.
+  const toggleSelect = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const handleBatchDelete = () => {
+    if (window.confirm(`确定要删除选中的 ${selectedIds.size} 份报告吗？此操作不可撤销。`)) {
+      setReports(prev => prev.filter(r => !selectedIds.has(r.id)));
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.size === filteredReports.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredReports.map(r => r.id)));
+    }
+  };
+
+  // Explicitly typing categories
   const categories = useMemo<string[]>(() => {
     const cats = ['全部', ...Array.from(new Set(reports.map(r => r.category)))];
     return cats;
   }, [reports]);
 
-  // Explicitly typing sortedAndFilteredReports to maintain correct flow in downstream computations.
-  const sortedAndFilteredReports = useMemo<MarketReport[]>(() => {
+  // Intermediate helper for select all
+  const filteredReports = useMemo<MarketReport[]>(() => {
     let result = [...reports];
-    
-    // Sort by reportDate desc
-    result.sort((a, b) => new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime());
-    
-    // Filter by search
     if (searchQuery) {
       result = result.filter(r => 
         r.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
         r.summary.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
-
-    // Filter by category
     if (activeCategory !== '全部') {
       result = result.filter(r => r.category === activeCategory);
     }
-    
     return result;
   }, [reports, searchQuery, activeCategory]);
 
-  // Explicitly typing the return value of reportsByYearMonth to ensure Object.entries results are typed.
+  const sortedAndFilteredReports = useMemo<MarketReport[]>(() => {
+    const result = [...filteredReports];
+    result.sort((a, b) => new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime());
+    return result;
+  }, [filteredReports]);
+
   const reportsByYearMonth = useMemo<Record<string, MarketReport[]>>(() => {
     const groups: Record<string, MarketReport[]> = {};
     sortedAndFilteredReports.forEach(report => {
@@ -131,11 +154,38 @@ const App: React.FC = () => {
         </div>
       </header>
 
+      {/* Batch Action Bar */}
+      {selectedIds.size > 0 && (
+        <div className="sticky top-[73px] z-30 bg-blue-50 border-b border-blue-200 px-6 py-3 animate-in slide-in-from-top duration-300">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <span className="text-sm font-semibold text-blue-700">
+                已选中 {selectedIds.size} 份报告
+              </span>
+              <button 
+                onClick={handleSelectAll}
+                className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors underline"
+              >
+                {selectedIds.size === filteredReports.length ? '取消全选' : '选择全部结果'}
+              </button>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button variant="danger" className="text-sm py-1.5" onClick={handleBatchDelete}>
+                批量删除
+              </Button>
+              <Button variant="secondary" className="text-sm py-1.5" onClick={() => setSelectedIds(new Set())}>
+                取消选择
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content */}
       <main className="flex-grow max-w-7xl w-full mx-auto p-6 md:p-10">
         {/* Category Filters */}
         <div className="mb-8 flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-hide">
-          {categories.map(cat => (
+          {categories.map((cat: string) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
@@ -168,23 +218,28 @@ const App: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-12">
-            {Object.entries(reportsByYearMonth).map(([month, reportsInMonth]) => (
-              <section key={month} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="flex items-center mb-6">
-                  <h2 className="text-xl font-bold text-gray-800 mr-4">{month}</h2>
-                  <div className="h-px bg-gray-200 flex-grow"></div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {reportsInMonth.map(report => (
-                    <ReportCard 
-                      key={report.id} 
-                      report={report} 
-                      onClick={(r) => setSelectedReport(r)} 
-                    />
-                  ))}
-                </div>
-              </section>
-            ))}
+            {Object.keys(reportsByYearMonth).map((month) => {
+              const reportsInMonth = reportsByYearMonth[month];
+              return (
+                <section key={month} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="flex items-center mb-6">
+                    <h2 className="text-xl font-bold text-gray-800 mr-4">{month}</h2>
+                    <div className="h-px bg-gray-200 flex-grow"></div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {reportsInMonth.map((report: MarketReport) => (
+                      <ReportCard 
+                        key={report.id} 
+                        report={report} 
+                        onClick={(r) => setSelectedReport(r)}
+                        isSelected={selectedIds.has(report.id)}
+                        onToggleSelect={() => toggleSelect(report.id)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
           </div>
         )}
       </main>
